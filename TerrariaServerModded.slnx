@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".dockerignore" />
+    <File Path=".gitignore" />
+    <File Path="Dockerfile" />
+    <File Path="global.json" />
+  </Folder>
+  <Folder Name="/Solution Items/.github/" />
+  <Folder Name="/Solution Items/.github/workflows/">
+    <File Path=".github/workflows/release.yml" />
+  </Folder>
+  <Project Path="TerrariaServerModded/TerrariaServerModded.csproj" />
+</Solution>
