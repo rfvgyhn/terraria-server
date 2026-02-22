@@ -15,9 +15,10 @@ A containerized, modded Terraria server with a custom management wrapper for enh
 - Includes socket at `/tmp/terraria.sock` (`/data/terraria.sock` when using docker) for external communication
   - `isidle` checks if there are any active players. Useful for shutting down the server when no players are connected 
     and your host charges by CPU time. Pairs well with [game-manager].
-    ```bash
-    echo "isidle" | socat - UNIX-CONNECT:/tmp/terraria.sock
-    ```
+  - Any other string will be treated as a command to send to the server (e.g. `say`, `exit`, etc...).
+  ```bash
+  echo "isidle" | socat - UNIX-CONNECT:/tmp/terraria.sock
+  ```
 
 ## Quick Start
 

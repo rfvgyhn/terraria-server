@@ -4,6 +4,7 @@
     <File Path=".gitignore" />
     <File Path="Dockerfile" />
     <File Path="global.json" />
+    <File Path="README.md" />
   </Folder>
   <Folder Name="/Solution Items/.github/" />
   <Folder Name="/Solution Items/.github/workflows/">

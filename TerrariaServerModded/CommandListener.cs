@@ -9,7 +9,7 @@ using Terraria;
 namespace TerrariaServerModded;
 
 [SupportedOSPlatform("linux")]
-public class CommandListener(string socketDir, ILogger<CommandListener> log) : BackgroundService
+public class CommandListener(ConsoleInterceptor console, string socketDir, Encoding encoding, ILogger<CommandListener> log) : BackgroundService
 {
     private readonly string _socketPath = Path.Combine(socketDir, "terraria.sock");
     private static readonly byte[] TrueResponse = "true\n"u8.ToArray();
@@ -54,20 +54,29 @@ public class CommandListener(string socketDir, ILogger<CommandListener> log) : B
         }
     }
 
-    private static async Task HandleClient(Socket client, CancellationToken ct)
+    private async Task HandleClient(Socket client, CancellationToken ct)
     {
         using var _ = client;
-        var buffer = ArrayPool<byte>.Shared.Rent(32);
+        var buffer = ArrayPool<byte>.Shared.Rent(512);
+        
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-            var received = await client.ReceiveAsync(buffer, SocketFlags.None, cts.Token);
-            if (received > 0)
+            int received;
+            var totalReceived = 0;
+            do
             {
-                var message = buffer.AsSpan(0, received).Trim(" \t\r\n\v\f"u8);
-                if (TryHandleMessage(message, out var response))
+                received = await client.ReceiveAsync(buffer.AsMemory(totalReceived), SocketFlags.None, cts.Token);
+                totalReceived += received;
+            } while (received > 0 && totalReceived < buffer.Length);
+
+            if (totalReceived > 0)
+            {
+                var message = buffer.AsSpan(0, totalReceived).Trim(" \t\r\n\v\f"u8);
+                    
+                if (TryHandleMessage(message, out var response) && response.Length > 0)
                     await client.SendAsync(response, SocketFlags.None, cts.Token);
             }
         }
@@ -80,7 +89,7 @@ public class CommandListener(string socketDir, ILogger<CommandListener> log) : B
         }
     }
 
-    private static bool TryHandleMessage(ReadOnlySpan<byte> message, out ReadOnlyMemory<byte> response)
+    private bool TryHandleMessage(ReadOnlySpan<byte> message, out ReadOnlyMemory<byte> response)
     {
         if (Ascii.EqualsIgnoreCase("isidle"u8, message))
         {
@@ -88,8 +97,9 @@ public class CommandListener(string socketDir, ILogger<CommandListener> log) : B
             return true;
         }
 
+        console.QueueInput(encoding.GetString(message));
         response = default;
-        return false;
+        return true;
     }
 
     private static bool ServerIsIdle()

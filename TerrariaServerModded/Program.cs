@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using ConsoleAppFramework;
 using Microsoft.Extensions.Logging;
@@ -50,8 +51,9 @@ public static partial class Program
         var saveRoot = InitSaveRoot(fullDataPath);
         var playerStore = new PlayerStore(saveRoot, !noCompress, backupCount, logFactory.CreateLogger<PlayerStore>());
         var playerDataService = new PlayerDataService(!noTeamSave, playerStore, logFactory.CreateLogger<PlayerDataService>());
-        using var hooks = new ServerMonitor(difficulty, playerStore, playerDataService, logFactory.CreateLogger<ServerMonitor>());
-        var commandListener = OperatingSystem.IsLinux() ? new CommandListener(socketDir, logFactory.CreateLogger<CommandListener>()) : null;
+        using var serverMonitor = new ServerMonitor(difficulty, playerStore, playerDataService, logFactory.CreateLogger<ServerMonitor>());
+        using var console = new ConsoleInterceptor(Console.In, ct);
+        var commandListener = OperatingSystem.IsLinux() ? new CommandListener(console, socketDir, Encoding.UTF8, logFactory.CreateLogger<CommandListener>()) : null;
         
         await playerDataService.StartAsync(ct);
         await (commandListener?.StartAsync(ct) ?? Task.CompletedTask);
@@ -133,7 +135,6 @@ public static partial class Program
     private static void RequestShutdown()
     {
         ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral("Server is shutting down"), new Color(255, 240, 20));
-        OTAPI.Hooks.Main.InvokeCommandProcess("exit");
         Terraria.Netplay.Disconnect = true;
     }
 
