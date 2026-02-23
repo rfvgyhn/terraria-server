@@ -292,7 +292,7 @@ public sealed class ServerMonitor : IDisposable
 
             void SendItems(Item[] items, int startIndex)
             {
-                for (var slot = startIndex; slot < items.Length; slot++)
+                for (var slot = startIndex; slot < items.Length + startIndex; slot++)
                     SendItem(slot);
             }
 
