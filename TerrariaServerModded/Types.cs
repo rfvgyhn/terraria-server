@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Terraria;
+using TerrariaServerModded.Extensions;
 
 namespace TerrariaServerModded;
 

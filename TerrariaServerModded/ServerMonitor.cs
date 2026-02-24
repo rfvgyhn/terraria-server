@@ -1,10 +1,13 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.Chat;
 using Terraria.ID;
 using Terraria.Localization;
 using Terraria.Net;
+using TerrariaServerModded.Extensions;
 
 namespace TerrariaServerModded;
 
@@ -14,8 +17,7 @@ public sealed class ServerMonitor : IDisposable
     private readonly PlayerStore _playerStore;
     private readonly PlayerDataService _playerDataService;
     private readonly ILogger<ServerMonitor> _log;
-    private readonly HashSet<string> _invalidPlayers = new();
-    private readonly Dictionary<string, Playtime> _additionalPlayerData = new();
+    private readonly Dictionary<string, AdditionalPlayerData> _additionalPlayerData = new(StringComparer.OrdinalIgnoreCase);
 
     public ServerMonitor(byte playerDifficulty, PlayerStore playerStore, PlayerDataService playerDataService,
         ILogger<ServerMonitor> log)
@@ -34,7 +36,6 @@ public sealed class ServerMonitor : IDisposable
         On.Terraria.Initializers.ChatInitializer.Load += OnChatInitLoad;
         On.Terraria.Main.Initialize += OnInitialize;
         On.Terraria.MessageBuffer.GetData += OnGetData;
-        On.Terraria.Player.Spawn += OnPlayerSpawn;
         On.Terraria.RemoteClient.Reset += OnClientDisconnect;
     }
 
@@ -45,7 +46,6 @@ public sealed class ServerMonitor : IDisposable
         On.Terraria.Initializers.ChatInitializer.Load -= OnChatInitLoad;
         On.Terraria.Main.Initialize -= OnInitialize;
         On.Terraria.MessageBuffer.GetData -= OnGetData;
-        On.Terraria.Player.Spawn -= OnPlayerSpawn;
         On.Terraria.RemoteClient.Reset -= OnClientDisconnect;
     }
 
@@ -58,12 +58,115 @@ public sealed class ServerMonitor : IDisposable
     private void OnGetData(On.Terraria.MessageBuffer.orig_GetData orig, MessageBuffer msgBuffer, int start, int length,
         out int msgType)
     {
-        msgType = msgBuffer.readBuffer[start];
+        var message = msgBuffer.readBuffer.AsSpan(start, length);
+        msgType = message[0];
+        message = message[1..];
 
+        if (msgType == MessageID.PlayerSpawn)
+        {
+            // player Index + spawnX + spawnY + respawnTimer + deathsPve + deathsPvp + team
+            const int contextOffset = 1 + 2 + 2 + 4 + 2 + 2 + 1;
+            var player = Main.player[msgBuffer.whoAmI];
+            var context = (PlayerSpawnContext)message[contextOffset];
+            if (HandleSpawn(player, context, message[1..]))
+                return;
+            
+            orig(msgBuffer, start, length, out msgType);
+            if (context == PlayerSpawnContext.SpawningIntoWorld 
+                && player.SpawnX > -1 
+                && player.SpawnY > -1 
+                && _additionalPlayerData.TryGet(player, out var data))
+            {
+                data.PendingSpawn = true;
+            }
+            return;
+        }
+
+        if (msgType == MessageID.PlayerControls)
+        {
+            var player = Main.player[msgBuffer.whoAmI];
+            if (HandlePlayerControls(player, message[1..]))
+                return;
+        }
+        
         if (msgType == MessageID.NetModules && HandleNetModules(msgBuffer, start, length)) 
             return;
 
         orig(msgBuffer, start, length, out msgType);
+    }
+
+    /// <returns>True if the packet was handled</returns>
+    private bool HandleSpawn(Player player, PlayerSpawnContext context, Span<byte> message)
+    {
+        if (context == PlayerSpawnContext.SpawningIntoWorld)
+        {
+            LoadPlayer(player, _playerStore);
+            BinaryPrimitives.WriteInt16LittleEndian(message, (short)player.SpawnX);
+            BinaryPrimitives.WriteInt16LittleEndian(message[2..], (short)player.SpawnY);
+            BinaryPrimitives.WriteInt32LittleEndian(message[4..], player.respawnTimer);
+            BinaryPrimitives.WriteInt16LittleEndian(message[8..], (short)player.numberOfDeathsPVE);
+            BinaryPrimitives.WriteInt16LittleEndian(message[10..], (short)player.numberOfDeathsPVP);
+            message[12] = (byte)player.team;
+        }
+        else if (context is PlayerSpawnContext.RecallFromItem or PlayerSpawnContext.ReviveFromDeath && player.SpawnX > -1 && player.SpawnY > -1)
+        {
+            if (Player.CheckSpawn(player.SpawnX, player.SpawnY))
+            {
+                var pos = Vector2.Subtract(new Point(player.SpawnX, player.SpawnY).ToWorldCoordinates(autoAddY: 0.0f), new Vector2(player.width / 2.0f, player.height));
+                player.Teleport(pos);
+                NetMessage.SendData(MessageID.TeleportEntity, number2: player.whoAmI, number3: pos.X, number4: pos.Y, number5: -1);
+                NetMessage.SendData(MessageID.PlayerSpawn, ignoreClient: player.whoAmI, number: player.whoAmI, number2: (byte) context);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <returns>True if the packet was handled</returns>
+    private bool HandlePlayerControls(Player player, Span<byte> message)
+    {
+        // message layout
+        // 0 = byte  - Bits1
+        // 1 = byte  - Bits2
+        // 2 = byte  - Bits3
+        //             0 = tryKeepingHoveringUp
+        //             1 = IsVoidVaultEnabled;
+        //             2 = sitting.isSitting;
+        //             3 = downedDD2EventAnyDifficulty;
+        // 3 = byte  - Bits4
+        // 4 = byte  - Selected Item
+        // 5 = float - position.x
+        // 9 = float - position.y
+        ref var bits3 = ref message[2];
+        if (SetBit(ref bits3, 1, player.IsVoidVaultEnabled) || SetBit(ref bits3, 3, player.downedDD2EventAnyDifficulty))
+            NetMessage.SendData(MessageID.PlayerControls, number: player.whoAmI, number2: bits3);
+
+        if (_additionalPlayerData.TryGet(player, out var data) && data.PendingSpawn && Player.CheckSpawn(player.SpawnX, player.SpawnY))
+        {
+            data.PendingSpawn = false;
+            var pos = Vector2.Subtract(new Point(player.SpawnX, player.SpawnY).ToWorldCoordinates(autoAddY: 0.0f), new Vector2(player.width / 2.0f, player.height));
+            player.Teleport(pos);
+            NetMessage.SendData(MessageID.TeleportEntity, number2: player.whoAmI, number3: pos.X, number4: pos.Y, number5: -1);
+            BinaryPrimitives.WriteSingleLittleEndian(message[5..], player.position.X);
+            BinaryPrimitives.WriteSingleLittleEndian(message[9..], player.position.Y);
+        }
+        
+        return false;
+
+        bool SetBit(ref byte b, byte offset, bool value)
+        {
+            var prev = b;
+            var mask = 1 << offset;
+                
+            if (value)
+                b = (byte)(b | mask);
+            else
+                b = (byte)(b & ~mask);
+
+            return prev != b;
+        }
     }
 
     /// <returns>True if the packet was handled</returns>
@@ -98,8 +201,9 @@ public sealed class ServerMonitor : IDisposable
         if (msg.Text.AsSpan().Trim().Equals("/playtime", StringComparison.OrdinalIgnoreCase))
         {
             var player = Main.player[playerIndex];
-            if (_additionalPlayerData.TryGetValue(GetPlayerId(player), out var playtime))
+            if (_additionalPlayerData.TryGet(player, out var data))
             {
+                var playtime = data.PlayTime;
                 if (playtime.Total.TotalDays >= 1)
                     player.SendInfoMessage($"{playtime.Total.TotalDays:F0}d {playtime.Total.Hours:D2}h {playtime.Total.Minutes:D2}m");
                 else if (playtime.Total.TotalHours >= 1)
@@ -141,39 +245,28 @@ public sealed class ServerMonitor : IDisposable
         if (remoteClient.IsActive)
         {
             var player = Main.player[remoteClient.Id];
-            var playerId = GetPlayerId(remoteClient, player.name);
-            if (!_invalidPlayers.Contains(playerId))
+            if (_additionalPlayerData.TryRemove(player, out var data))
             {
                 if (player.difficulty == PlayerDifficultyID.Hardcore && (player.dead || player.ghost))
                     DeletePlayer(_playerDataService, player);
                 else
-                    SavePlayer(_playerDataService, player);
+                    SavePlayer(_playerDataService, player, data);
             }
-            _invalidPlayers.Remove(playerId);
-            _additionalPlayerData.Remove(playerId);
         }
 
         orig(remoteClient);
     }
-
-    private void OnPlayerSpawn(On.Terraria.Player.orig_Spawn orig, Player player, PlayerSpawnContext context)
-    {
-        if (context == PlayerSpawnContext.SpawningIntoWorld)
-            LoadPlayer(player, _playerStore);
-        
-        orig(player, context);
-    }
     
     private void LoadPlayer(Player p, PlayerStore store)
     {
-        var playerId = GetPlayerId(p);
-        _invalidPlayers.Remove(playerId);
+        var playerId = p.GetPlayerId();
+        var isValid = true;
         _additionalPlayerData.Remove(playerId);
 
         if (!store.TryLoad(playerId, out var data))
         {
             _log.LogWarning("Player {Name} - {Id} will be forced to a new character until issue is resolved", p.name, playerId);
-            _invalidPlayers.Add(playerId);
+            isValid = false;
             p.SendErrorMessage("Your player data could not be loaded. Contact a server administrator for assistance.");
         }
 
@@ -190,7 +283,8 @@ public sealed class ServerMonitor : IDisposable
             p.Reset();
         }
         
-        _additionalPlayerData[playerId] = new Playtime(Stopwatch.GetTimestamp(), playtime);
+        if (isValid)
+            _additionalPlayerData[playerId] = new(new Playtime(Stopwatch.GetTimestamp(), playtime), false);
         Array.Clear(p.buffType);
         Array.Clear(p.buffTime);
         p.difficulty = _playerDifficulty;
@@ -204,43 +298,26 @@ public sealed class ServerMonitor : IDisposable
     private void SavePlayers(PlayerDataService playerDataService, Player[] players)
     {
         foreach (var p in players)
-            SavePlayer(playerDataService, p);
+            SavePlayer(playerDataService, p, null);
     }
 
-    private void SavePlayer(PlayerDataService playerDataService, Player player)
+    private void SavePlayer(PlayerDataService playerDataService, Player player, AdditionalPlayerData? data)
     {
         if (!player.active) 
             return;
         
-        var id = GetPlayerId(player);
-        if (!_invalidPlayers.Contains(id))
-        {
-            var playtime = TimeSpan.Zero;
-            if (_additionalPlayerData.TryGetValue(id, out var data))
-                playtime = data.Total;
-                
-            playerDataService.Save(id, player, playtime);
-        }
+        var id = player.GetPlayerId();
+        if (data is null)
+            _additionalPlayerData.TryGetValue(id, out data);
+        
+        var playtime = data?.PlayTime.Total ?? TimeSpan.Zero;
+        playerDataService.Save(id, player, playtime);
     }
     
     private static void DeletePlayer(PlayerDataService playerDataService, Player player)
     {
-        var id = GetPlayerId(player);
+        var id = player.GetPlayerId();
         playerDataService.Delete(id);
-    }
-
-    private static string GetPlayerId(RemoteClient client, string playerName) => client.Socket.GetRemoteAddress() switch
-    {
-        SteamAddress a => $"steam_{a.SteamId}_{playerName}",
-        //WeGameAddress a => $"wegame_{a.rail_id}_{playerName}",
-        _ => string.IsNullOrEmpty(client.ClientUUID) ? PlayerStore.UnknownPlayerId : $"client_{client.ClientUUID}_{playerName}"
-    };
-
-    private static string GetPlayerId(Player p)
-    {
-        var client = Netplay.Clients[p.whoAmI];
-
-        return GetPlayerId(client, p.name);
     }
 
     private static void SyncPlayer(Player p)
