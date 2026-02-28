@@ -10,10 +10,10 @@ namespace TerrariaServerModded.Extensions;
 public static class PlayerExtensions
 {
     public static void SendErrorMessage(this Player p, string message) =>
-        ChatHelper.DisplayMessageOnClient(NetworkText.FromLiteral(message), new(255, 0, 0), p.whoAmI);
+        ChatHelper.SendChatMessageToClient(NetworkText.FromLiteral(message), new(255, 0, 0), p.whoAmI);
 
     public static void SendInfoMessage(this Player p, string message) =>
-        ChatHelper.DisplayMessageOnClient(NetworkText.FromLiteral(message), new(0, 255, 255), p.whoAmI);
+        ChatHelper.SendChatMessageToClient(NetworkText.FromLiteral(message), new(0, 255, 255), p.whoAmI);
 
     public static void Reset(this Player p)
     {
