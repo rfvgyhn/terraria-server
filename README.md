@@ -10,7 +10,8 @@ A containerized, modded Terraria server with a custom management wrapper for enh
   - Automatic character backup rotation
   - Forced difficulty setting
   - Persistent player team
-  - Adds `/playtime` command for tracking playtime
+  - Adds `/playtime` chat command for tracking playtime
+  - Adds `/boosters` chat command for showing players' permanent boosters
 - Graceful shutdown on SIGTERM. Saves world and character data before exiting.
 - Includes socket at `/tmp/terraria.sock` (`/data/terraria.sock` when using docker) for external communication
   - `isidle` checks if there are any active players. Useful for shutting down the server when no players are connected 

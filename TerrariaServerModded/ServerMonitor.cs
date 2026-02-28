@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Terraria;
@@ -53,6 +54,7 @@ public sealed class ServerMonitor : IDisposable
     {
         orig();
         LanguageManager.Instance._localizedTexts.Add("ChatCommandDescription.Playtime", new LocalizedText("ChatCommandDescription.Playtime", "/playtime: Display your character's time in this server"));
+        LanguageManager.Instance._localizedTexts.Add("ChatCommandDescription.PlayerBoosters", new LocalizedText("ChatCommandDescription.PlayerBoosters", "/boosters: Display your character's permanent boosters"));
     }
 
     private void OnGetData(On.Terraria.MessageBuffer.orig_GetData orig, MessageBuffer msgBuffer, int start, int length,
@@ -198,26 +200,66 @@ public sealed class ServerMonitor : IDisposable
     /// <returns>True if the message was handled</returns>
     private bool HandleChat(ChatMessage msg, int playerIndex)
     {
-        if (msg.Text.AsSpan().Trim().Equals("/playtime", StringComparison.OrdinalIgnoreCase))
+        var p = Main.player[playerIndex];
+        var text = msg.Text.AsSpan().Trim(); 
+        if (text.Equals("/playtime", StringComparison.OrdinalIgnoreCase))
         {
-            var player = Main.player[playerIndex];
-            if (_additionalPlayerData.TryGet(player, out var data))
-            {
-                var playtime = data.PlayTime;
-                if (playtime.Total.TotalDays >= 1)
-                    player.SendInfoMessage($"{playtime.Total.TotalDays:F0}d {playtime.Total.Hours:D2}h {playtime.Total.Minutes:D2}m");
-                else if (playtime.Total.TotalHours >= 1)
-                    player.SendInfoMessage($"{playtime.Total.TotalHours:F0}h {playtime.Total.Minutes:D2}m");
-                else if (playtime.Total.TotalMinutes >= 1)
-                    player.SendInfoMessage($"{playtime.Total.TotalMinutes:F0} minutes");
-                else
-                    player.SendInfoMessage($"{playtime.Total.TotalSeconds:F0} seconds");
-            }
-
+            ShowPlaytime();
+            return true;
+        }
+        if (text.Equals("/boosters", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowBoosters();
             return true;
         }
 
         return false;
+
+        void ShowBoosters()
+        {
+            var sb = new StringBuilder();
+            Append(p.usedAegisCrystal, "ItemName.AegisCrystal");
+            Append(p.usedAegisFruit, "ItemName.AegisFruit");
+            Append(p.usedAmbrosia, "ItemName.Ambrosia");
+            Append(p.usedArcaneCrystal, "ItemName.ArcaneCrystal");
+            Append(p.ateArtisanBread, "ItemName.ArtisanLoaf");
+            Append(p.extraAccessory, "ItemName.DemonHeart");
+            Append(p.usedGalaxyPearl, "ItemName.GalaxyPearl");
+            Append(p.usedGummyWorm, "ItemName.GummyWorm");
+            Append(p.unlockedSuperCart, "ItemName.MinecartPowerup");
+            Append(p.unlockedBiomeTorches, "ItemName.TorchGodsFavor");
+
+            if (sb.Length > 0)
+                p.SendInfoMessage(sb.ToString());
+            
+            return;
+
+            void Append(bool flag, string key)
+            {
+                if (flag)
+                {
+                    if (sb.Length > 0)
+                        sb.Append(", ");
+                    sb.Append(LanguageManager.Instance.GetTextValue(key));
+                }
+            }
+        }
+
+        void ShowPlaytime()
+        {
+            if (!_additionalPlayerData.TryGet(p, out var data))
+                return;
+            
+            var playtime = data.PlayTime;
+            if (playtime.Total.TotalDays >= 1)
+                p.SendInfoMessage($"{playtime.Total.TotalDays:F0}d {playtime.Total.Hours:D2}h {playtime.Total.Minutes:D2}m");
+            else if (playtime.Total.TotalHours >= 1)
+                p.SendInfoMessage($"{playtime.Total.TotalHours:F0}h {playtime.Total.Minutes:D2}m");
+            else if (playtime.Total.TotalMinutes >= 1)
+                p.SendInfoMessage($"{playtime.Total.TotalMinutes:F0} minutes");
+            else
+                p.SendInfoMessage($"{playtime.Total.TotalSeconds:F0} seconds");
+        }
     }
     
     private static void OnInitialize(On.Terraria.Main.orig_Initialize orig, Main main)
