@@ -224,6 +224,7 @@ public record ServerPlayerData(
         if (p.ateArtisanBread) flags |= PlayerFlags.AteArtisanBread;
         if (p.downedDD2EventAnyDifficulty) flags |= PlayerFlags.DownedDd2EventAnyDifficulty;
         if (p.enabledSuperCart) flags |= PlayerFlags.EnabledSuperCart;
+        if (p.extraAccessory) flags |= PlayerFlags.ExtraAccessory;
         if (p.happyFunTorchTime) flags |= PlayerFlags.HappyFunTorchTime;
         if (p.unlockedBiomeTorches) flags |= PlayerFlags.UnlockedBiomeTorches;
         if (p.unlockedSuperCart) flags |= PlayerFlags.UnlockedSuperCart;
