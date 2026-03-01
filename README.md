@@ -11,11 +11,13 @@ A containerized, modded Terraria server with a custom management wrapper for enh
   - Forced difficulty setting
   - Persistent player team
   - Adds `/playtime` chat command for tracking playtime
-  - Adds `/boosters` chat command for showing players' permanent boosters
+- Adds `/boosters` chat command for showing players' permanent boosters
+- Adds `/mode` chat command for showing the world's current mode
 - Graceful shutdown on SIGTERM. Saves world and character data before exiting.
 - Includes socket at `/tmp/terraria.sock` (`/data/terraria.sock` when using docker) for external communication
   - `isidle` checks if there are any active players. Useful for shutting down the server when no players are connected 
     and your host charges by CPU time. Pairs well with [game-manager].
+  - `gamemode [mode]` gets or sets the world's game mode.
   - Any other string will be treated as a command to send to the server (e.g. `say`, `exit`, etc...).
   ```bash
   echo "isidle" | socat - UNIX-CONNECT:/tmp/terraria.sock

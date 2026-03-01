@@ -55,6 +55,7 @@ public sealed class ServerMonitor : IDisposable
         orig();
         LanguageManager.Instance._localizedTexts.Add("ChatCommandDescription.Playtime", new LocalizedText("ChatCommandDescription.Playtime", "/playtime: Display your character's time in this server"));
         LanguageManager.Instance._localizedTexts.Add("ChatCommandDescription.PlayerBoosters", new LocalizedText("ChatCommandDescription.PlayerBoosters", "/boosters: Display your character's permanent boosters"));
+        LanguageManager.Instance._localizedTexts.Add("ChatCommandDescription.GameMode", new LocalizedText("ChatCommandDescription.GameMode", "/mode: Display the world's current game mode"));
     }
 
     private void OnGetData(On.Terraria.MessageBuffer.orig_GetData orig, MessageBuffer msgBuffer, int start, int length,
@@ -212,9 +213,28 @@ public sealed class ServerMonitor : IDisposable
             ShowBoosters();
             return true;
         }
+        if (text.Equals("/mode", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowGameMode();
+            return true;
+        }
 
         return false;
 
+        void ShowGameMode()
+        {
+            var key = Main.GameMode switch
+            {
+                GameModeID.Normal => "Normal",
+                GameModeID.Expert => "Expert",
+                GameModeID.Master => "Master",
+                GameModeID.Creative => "Creative",
+                _ => "InvalidGameMode"
+            };
+            var mode = LanguageManager.Instance.GetTextValue($"UI.{key}");
+            p.SendInfoMessage(mode);
+        }
+        
         void ShowBoosters()
         {
             var sb = new StringBuilder();

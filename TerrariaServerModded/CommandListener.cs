@@ -5,11 +5,18 @@ using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Terraria;
+using Terraria.Chat;
+using Terraria.ID;
+using Terraria.Localization;
 
 namespace TerrariaServerModded;
 
 [SupportedOSPlatform("linux")]
-public class CommandListener(ConsoleInterceptor console, string socketDir, Encoding encoding, ILogger<CommandListener> log) : BackgroundService
+public class CommandListener(
+    ConsoleInterceptor console,
+    string socketDir,
+    Encoding encoding,
+    ILogger<CommandListener> log) : BackgroundService
 {
     private readonly string _socketPath = Path.Combine(socketDir, "terraria.sock");
     private static readonly byte[] TrueResponse = "true\n"u8.ToArray();
@@ -19,7 +26,7 @@ public class CommandListener(ConsoleInterceptor console, string socketDir, Encod
     {
         if (Path.GetDirectoryName(_socketPath) is { } dir)
             Directory.CreateDirectory(dir);
-        
+
         if (File.Exists(_socketPath))
             File.Delete(_socketPath);
 
@@ -58,7 +65,7 @@ public class CommandListener(ConsoleInterceptor console, string socketDir, Encod
     {
         using var _ = client;
         var buffer = ArrayPool<byte>.Shared.Rent(512);
-        
+
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -75,7 +82,7 @@ public class CommandListener(ConsoleInterceptor console, string socketDir, Encod
             if (totalReceived > 0)
             {
                 var message = buffer.AsSpan(0, totalReceived).Trim(" \t\r\n\v\f"u8);
-                    
+
                 if (TryHandleMessage(message, out var response) && response.Length > 0)
                     await client.SendAsync(response, SocketFlags.None, cts.Token);
             }
@@ -97,6 +104,12 @@ public class CommandListener(ConsoleInterceptor console, string socketDir, Encod
             return true;
         }
 
+        if (Ascii.EqualsIgnoreCase("gamemode"u8, message[..8]))
+        {
+            response = GameMode(message);
+            return true;
+        }
+
         console.QueueInput(encoding.GetString(message));
         response = default;
         return true;
@@ -111,5 +124,40 @@ public class CommandListener(ConsoleInterceptor console, string socketDir, Encod
         }
 
         return true;
+    }
+
+    private byte[] GameMode(ReadOnlySpan<byte> message)
+    {
+        var firstSpace = message.Trim(" \t\r\n\v\f"u8).IndexOf((byte)' ');
+
+        var arg = firstSpace > 0
+            ? encoding.GetString(message[(firstSpace + 1)..].Trim(" \t\r\n\v\f"u8)).ToLowerInvariant()
+            : "";
+        var mode = arg switch
+        {
+            "classic" or "normal" or "0" => GameModeID.Normal,
+            "expert" or "1" => GameModeID.Expert,
+            "master" or "2" => GameModeID.Master,
+            "journey" or "creative" or "3" => GameModeID.Creative,
+            _ => Main.GameMode
+        };
+        var text = ModeStr(mode);
+        if (mode != Main.GameMode)
+        {
+            Main.GameMode = mode;
+            ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral($"World mode set to {text}"), new(0, 255, 255));
+            NetMessage.SendData(MessageID.WorldData);
+        }
+
+        return encoding.GetBytes(text);
+        
+        static string ModeStr(int mode) => mode switch
+        {
+            GameModeID.Normal => "classic",
+            GameModeID.Expert => "expert",
+            GameModeID.Master => "master",
+            GameModeID.Creative => "journey",
+            _ => "unknown"
+        };
     }
 }
