@@ -97,6 +97,13 @@ public sealed class ServerMonitor : IDisposable
             if (HandlePlayerControls(player, message[1..]))
                 return;
         }
+
+        if (msgType == MessageID.AnglerQuestFinished)
+        {
+            // Packet QuestsCountSync (76) isn't sent by client
+            // TODO: probably need to manually handle golf score as well. Look into possible hooks to do so. Maybe packet 128
+            Main.player[msgBuffer.whoAmI].anglerQuestsFinished++;
+        }
         
         if (msgType == MessageID.NetModules && HandleNetModules(msgBuffer, start, length)) 
             return;
