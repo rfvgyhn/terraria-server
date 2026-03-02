@@ -1,14 +1,14 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
+using On.Terraria.Chat.Commands;
 using Terraria;
 using Terraria.Chat;
 using Terraria.ID;
-using Terraria.Localization;
 using Terraria.Net;
 using TerrariaServerModded.Extensions;
+using ChatCommandProcessor = TerrariaServerModded.Chat.ChatCommandProcessor;
 
 namespace TerrariaServerModded;
 
@@ -32,6 +32,7 @@ public sealed class ServerMonitor : IDisposable
 
     private void RegisterHooks()
     {
+        On.Terraria.Chat.Commands.HelpCommand.ProcessIncomingMessage += OnHelpCommand;
         On.Terraria.IO.WorldFile.LoadWorld += OnWorldLoad;
         On.Terraria.IO.WorldFile.SaveWorld_bool_bool += OnWorldSave;
         On.Terraria.Initializers.ChatInitializer.Load += OnChatInitLoad;
@@ -42,6 +43,7 @@ public sealed class ServerMonitor : IDisposable
 
     private void UnregisterHooks()
     {
+        On.Terraria.Chat.Commands.HelpCommand.ProcessIncomingMessage -= OnHelpCommand;
         On.Terraria.IO.WorldFile.LoadWorld -= OnWorldLoad;
         On.Terraria.IO.WorldFile.SaveWorld_bool_bool -= OnWorldSave;
         On.Terraria.Initializers.ChatInitializer.Load -= OnChatInitLoad;
@@ -49,13 +51,17 @@ public sealed class ServerMonitor : IDisposable
         On.Terraria.MessageBuffer.GetData -= OnGetData;
         On.Terraria.RemoteClient.Reset -= OnClientDisconnect;
     }
+    
+    private static void OnHelpCommand(HelpCommand.orig_ProcessIncomingMessage orig, Terraria.Chat.Commands.HelpCommand self, string text, byte clientId)
+    {
+        orig(self, text, clientId);
+        ChatCommandProcessor.ListToClient(clientId);
+    }
 
     private static void OnChatInitLoad(On.Terraria.Initializers.ChatInitializer.orig_Load orig)
     {
         orig();
-        LanguageManager.Instance._localizedTexts.Add("ChatCommandDescription.Playtime", new LocalizedText("ChatCommandDescription.Playtime", "/playtime: Display your character's time in this server"));
-        LanguageManager.Instance._localizedTexts.Add("ChatCommandDescription.PlayerBoosters", new LocalizedText("ChatCommandDescription.PlayerBoosters", "/boosters: Display your character's permanent boosters"));
-        LanguageManager.Instance._localizedTexts.Add("ChatCommandDescription.GameMode", new LocalizedText("ChatCommandDescription.GameMode", "/mode: Display the world's current game mode"));
+        ChatCommandProcessor.Init();
     }
 
     private void OnGetData(On.Terraria.MessageBuffer.orig_GetData orig, MessageBuffer msgBuffer, int start, int length,
@@ -202,84 +208,10 @@ public sealed class ServerMonitor : IDisposable
     private bool HandleChat(ChatMessage msg, int playerIndex)
     {
         var p = Main.player[playerIndex];
-        var text = msg.Text.AsSpan().Trim(); 
-        if (text.Equals("/playtime", StringComparison.OrdinalIgnoreCase))
-        {
-            ShowPlaytime();
-            return true;
-        }
-        if (text.Equals("/boosters", StringComparison.OrdinalIgnoreCase))
-        {
-            ShowBoosters();
-            return true;
-        }
-        if (text.Equals("/mode", StringComparison.OrdinalIgnoreCase))
-        {
-            ShowGameMode();
-            return true;
-        }
-
-        return false;
-
-        void ShowGameMode()
-        {
-            var key = Main.GameMode switch
-            {
-                GameModeID.Normal => "Normal",
-                GameModeID.Expert => "Expert",
-                GameModeID.Master => "Master",
-                GameModeID.Creative => "Creative",
-                _ => "InvalidGameMode"
-            };
-            var mode = LanguageManager.Instance.GetTextValue($"UI.{key}");
-            p.SendInfoMessage(mode);
-        }
+        var text = msg.Text.AsSpan().Trim();
+        _additionalPlayerData.TryGet(p, out var data);
         
-        void ShowBoosters()
-        {
-            var sb = new StringBuilder();
-            Append(p.usedAegisCrystal, "ItemName.AegisCrystal");
-            Append(p.usedAegisFruit, "ItemName.AegisFruit");
-            Append(p.usedAmbrosia, "ItemName.Ambrosia");
-            Append(p.usedArcaneCrystal, "ItemName.ArcaneCrystal");
-            Append(p.ateArtisanBread, "ItemName.ArtisanLoaf");
-            Append(p.extraAccessory, "ItemName.DemonHeart");
-            Append(p.usedGalaxyPearl, "ItemName.GalaxyPearl");
-            Append(p.usedGummyWorm, "ItemName.GummyWorm");
-            Append(p.unlockedSuperCart, "ItemName.MinecartPowerup");
-            Append(p.unlockedBiomeTorches, "ItemName.TorchGodsFavor");
-
-            if (sb.Length > 0)
-                p.SendInfoMessage(sb.ToString());
-            
-            return;
-
-            void Append(bool flag, string key)
-            {
-                if (flag)
-                {
-                    if (sb.Length > 0)
-                        sb.Append(", ");
-                    sb.Append(LanguageManager.Instance.GetTextValue(key));
-                }
-            }
-        }
-
-        void ShowPlaytime()
-        {
-            if (!_additionalPlayerData.TryGet(p, out var data))
-                return;
-            
-            var playtime = data.PlayTime;
-            if (playtime.Total.TotalDays >= 1)
-                p.SendInfoMessage($"{playtime.Total.TotalDays:F0}d {playtime.Total.Hours:D2}h {playtime.Total.Minutes:D2}m");
-            else if (playtime.Total.TotalHours >= 1)
-                p.SendInfoMessage($"{playtime.Total.TotalHours:F0}h {playtime.Total.Minutes:D2}m");
-            else if (playtime.Total.TotalMinutes >= 1)
-                p.SendInfoMessage($"{playtime.Total.TotalMinutes:F0} minutes");
-            else
-                p.SendInfoMessage($"{playtime.Total.TotalSeconds:F0} seconds");
-        }
+        return ChatCommandProcessor.ExecuteIfMatches(p, data, text);
     }
     
     private static void OnInitialize(On.Terraria.Main.orig_Initialize orig, Main main)

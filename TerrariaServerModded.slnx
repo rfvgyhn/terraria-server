@@ -10,5 +10,6 @@
   <Folder Name="/Solution Items/.github/workflows/">
     <File Path=".github/workflows/release.yml" />
   </Folder>
+  <Project Path="TerrariaServerModded.Roslyn/TerrariaServerModded.Roslyn.csproj" />
   <Project Path="TerrariaServerModded/TerrariaServerModded.csproj" />
 </Solution>

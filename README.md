@@ -13,6 +13,7 @@ A containerized, modded Terraria server with a custom management wrapper for enh
   - Adds `/playtime` chat command for tracking playtime
 - Adds `/boosters` chat command for showing players' permanent boosters
 - Adds `/mode` chat command for showing the world's current mode
+- Adds `/quests` chat command for showing players' finished angler quest count
 - Graceful shutdown on SIGTERM. Saves world and character data before exiting.
 - Includes socket at `/tmp/terraria.sock` (`/data/terraria.sock` when using docker) for external communication
   - `isidle` checks if there are any active players. Useful for shutting down the server when no players are connected 
