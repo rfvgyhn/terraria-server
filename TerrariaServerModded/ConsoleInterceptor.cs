@@ -5,12 +5,14 @@ namespace TerrariaServerModded;
 
 public class ConsoleInterceptor : TextReader
 {
-    private readonly ConcurrentQueue<string> _queue = new();
+    private readonly ConcurrentQueue<(string text, bool handled)> _queue = new();
     private readonly TextReader _original;
     private readonly CancellationToken _stoppingToken;
     private readonly SemaphoreSlim _signal = new(0);
     private readonly CancellationTokenSource _exitCts = new();
     private bool _disposed;
+    
+    public event EventHandler<ConsoleInterceptorInputEventArgs>? InputReceived;
 
     public ConsoleInterceptor(TextReader original, CancellationToken stoppingToken = default)
     {
@@ -43,9 +45,9 @@ public class ConsoleInterceptor : TextReader
         catch (OperationCanceledException) { }
     }
 
-    public void QueueInput(string text)
+    public void QueueInput(string text, bool handled = false)
     {
-        _queue.Enqueue(text);
+        _queue.Enqueue((text, handled));
         _signal.Release();
     }
 
@@ -58,7 +60,15 @@ public class ConsoleInterceptor : TextReader
             if (_disposed)
                 return null;
 
-            return _queue.TryDequeue(out var result) ? result : null;
+            if (!_queue.TryDequeue(out var result)) 
+                return null;
+
+            var args = new ConsoleInterceptorInputEventArgs(result.text);
+            if (!result.handled)
+                InputReceived?.Invoke(this, args);
+
+            return args.Handled ? null : result.text;
+
         }
         catch (OperationCanceledException)
         {
@@ -93,4 +103,9 @@ public class ConsoleInterceptor : TextReader
         
         base.Dispose(disposing);
     }
+}
+
+public record ConsoleInterceptorInputEventArgs(string Input)
+{
+    public bool Handled { get; set; }
 }

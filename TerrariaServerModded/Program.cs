@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework;
 using Terraria.Chat;
 using Terraria.ID;
 using Terraria.Localization;
+using TerrariaServerModded.Cli;
 
 namespace TerrariaServerModded;
 
@@ -53,6 +54,7 @@ public static partial class Program
         var playerDataService = new PlayerDataService(!noTeamSave, playerStore, logFactory.CreateLogger<PlayerDataService>());
         using var serverMonitor = new ServerMonitor(difficulty, playerStore, playerDataService, logFactory.CreateLogger<ServerMonitor>());
         using var console = new ConsoleInterceptor(Console.In, ct);
+        console.InputReceived += (_, args) => args.Handled = CliCommandProcessor.HandleConsoleInput(args.Input);
         var commandListener = OperatingSystem.IsLinux() ? new CommandListener(console, socketDir, Encoding.UTF8, logFactory.CreateLogger<CommandListener>()) : null;
         
         await playerDataService.StartAsync(ct);

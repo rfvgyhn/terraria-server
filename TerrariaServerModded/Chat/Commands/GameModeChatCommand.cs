@@ -1,6 +1,7 @@
 using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
+using TerrariaServerModded.Cli.Commands;
 using TerrariaServerModded.Extensions;
 
 namespace TerrariaServerModded.Chat.Commands;
@@ -15,15 +16,7 @@ public class GameModeChatCommand : IChatCommand
 
     public static void Execute(Player player, AdditionalPlayerData? data, ReadOnlySpan<char> input)
     {
-        var key = Main.GameMode switch
-        {
-            GameModeID.Normal => "Normal",
-            GameModeID.Expert => "Expert",
-            GameModeID.Master => "Master",
-            GameModeID.Creative => "Creative",
-            _ => "InvalidGameMode"
-        };
-        var mode = LanguageManager.Instance.GetTextValue($"UI.{key}");
+        var mode = GameModeCliCommand.MapMode(Main.GameMode);
         player.SendInfoMessage(mode);
     }
 }

@@ -4,10 +4,8 @@ using System.Runtime.Versioning;
 using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Terraria;
-using Terraria.Chat;
-using Terraria.ID;
-using Terraria.Localization;
+using TerrariaServerModded.Cli;
+using TerrariaServerModded.Extensions;
 
 namespace TerrariaServerModded;
 
@@ -19,8 +17,6 @@ public class CommandListener(
     ILogger<CommandListener> log) : BackgroundService
 {
     private readonly string _socketPath = Path.Combine(socketDir, "terraria.sock");
-    private static readonly byte[] TrueResponse = "true\n"u8.ToArray();
-    private static readonly byte[] FalseResponse = "false\n"u8.ToArray();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -81,10 +77,13 @@ public class CommandListener(
 
             if (totalReceived > 0)
             {
-                var message = buffer.AsSpan(0, totalReceived).Trim(" \t\r\n\v\f"u8);
+                var message = buffer.AsSpan(0, totalReceived).TrimWhitespace();
 
                 if (TryHandleMessage(message, out var response) && response.Length > 0)
+                {
                     await client.SendAsync(response, SocketFlags.None, cts.Token);
+                    await client.SendAsync(encoding.GetBytes(Environment.NewLine), SocketFlags.None, cts.Token);
+                }
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -98,66 +97,11 @@ public class CommandListener(
 
     private bool TryHandleMessage(ReadOnlySpan<byte> message, out ReadOnlyMemory<byte> response)
     {
-        if (Ascii.EqualsIgnoreCase("isidle"u8, message))
-        {
-            response = ServerIsIdle() ? TrueResponse : FalseResponse;
+        var text = encoding.GetString(message);
+        if (CliCommandProcessor.TryHandle(text, out response))
             return true;
-        }
 
-        if (Ascii.EqualsIgnoreCase("gamemode"u8, message[..8]))
-        {
-            response = GameMode(message);
-            return true;
-        }
-
-        console.QueueInput(encoding.GetString(message));
-        response = default;
+        console.QueueInput(text, true);
         return true;
-    }
-
-    private static bool ServerIsIdle()
-    {
-        foreach (var p in Main.player)
-        {
-            if (p.active)
-                return false;
-        }
-
-        return true;
-    }
-
-    private byte[] GameMode(ReadOnlySpan<byte> message)
-    {
-        var firstSpace = message.Trim(" \t\r\n\v\f"u8).IndexOf((byte)' ');
-
-        var arg = firstSpace > 0
-            ? encoding.GetString(message[(firstSpace + 1)..].Trim(" \t\r\n\v\f"u8)).ToLowerInvariant()
-            : "";
-        var mode = arg switch
-        {
-            "classic" or "normal" or "0" => GameModeID.Normal,
-            "expert" or "1" => GameModeID.Expert,
-            "master" or "2" => GameModeID.Master,
-            "journey" or "creative" or "3" => GameModeID.Creative,
-            _ => Main.GameMode
-        };
-        var text = ModeStr(mode);
-        if (mode != Main.GameMode)
-        {
-            Main.GameMode = mode;
-            ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral($"World mode set to {text}"), new(0, 255, 255));
-            NetMessage.SendData(MessageID.WorldData);
-        }
-
-        return encoding.GetBytes(text);
-        
-        static string ModeStr(int mode) => mode switch
-        {
-            GameModeID.Normal => "classic",
-            GameModeID.Expert => "expert",
-            GameModeID.Master => "master",
-            GameModeID.Creative => "journey",
-            _ => "unknown"
-        };
     }
 }

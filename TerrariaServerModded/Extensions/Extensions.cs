@@ -57,4 +57,6 @@ public static class Extensions
 
         return value;
     }
+    
+    public static ReadOnlySpan<byte> TrimWhitespace(this ReadOnlySpan<byte> input) => input.Trim(" \t\r\n\v\f"u8);
 }
