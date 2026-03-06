@@ -93,5 +93,5 @@ public class ConsoleInterceptor : TextReader
 
 public record ConsoleInterceptorInputEventArgs(string Input)
 {
-    public bool Handled { get; set; }
+    public string? Response { get; set; } = Input;
 }

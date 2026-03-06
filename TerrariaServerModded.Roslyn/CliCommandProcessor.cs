@@ -108,7 +108,7 @@ public class CliCommandProcessor : IIncrementalGenerator
             sb.AppendLine();
             
             // TryHandle Method
-            sb.AppendLine("    public static bool TryHandle(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)");
+            sb.AppendLine("    public static ReadOnlySpan<char> TryHandle(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)");
             sb.AppendLine("    {");
             foreach (var cmd in commandTypes)
             {
@@ -116,7 +116,7 @@ public class CliCommandProcessor : IIncrementalGenerator
                 sb.AppendLine($"            return {cmd}.TryExecute(input, out response);");
             }
             sb.AppendLine("        response = default;");
-            sb.AppendLine("        return false;");
+            sb.AppendLine("        return input;");
             sb.AppendLine("    }");
             sb.AppendLine();
 

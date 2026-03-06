@@ -9,7 +9,7 @@ public class HelpCliCommand : ICliCommand
     public static string Description => "Display a list of available commands";
     public static string Command => "help";
 
-    public static bool TryExecute(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)
+    public static ReadOnlySpan<char> TryExecute(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)
     {
         Console.WriteLine(Language.GetTextValue("CLI.AvailableCommands"));
         Console.WriteLine();
@@ -18,7 +18,7 @@ public class HelpCliCommand : ICliCommand
         Console.SetOut(new WriteLineSuppressor(Console.Out));
         response = Encoding.UTF8.GetBytes(text);
         
-        return false;
+        return input;
     }
 
     private class WriteLineSuppressor(TextWriter original) : TextWriter

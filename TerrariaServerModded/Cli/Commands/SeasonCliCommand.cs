@@ -1,5 +1,4 @@
 using System.Text;
-using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.Chat;
 using Terraria.Localization;
@@ -11,13 +10,10 @@ public class SeasonCliCommand : ICliCommand
     public static string Display => "season [season]";
     public static string Description => "Gets or sets the world's season (xmas/christmas, halloween, none)";
     public static string Command => "season";
-    public static bool TryExecute(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)
+    
+    public static ReadOnlySpan<char> TryExecute(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)
     {
-        var firstSpace = input.IndexOf(' ');
-        var arg = firstSpace > 0
-            ? input[(firstSpace + 1)..].Trim()
-            : "";
-
+        var arg = CliCommandProcessor.GetArgString(input);
         var wasXmas = Main.xMas;
         var wasHalloween = Main.halloween;
         switch (MapArg(arg))
@@ -43,34 +39,34 @@ public class SeasonCliCommand : ICliCommand
         Main.checkXMas();
         Main.checkHalloween();
         
-        var chatColor = new Color(0, 255, 255);
+        var color = CliCommandProcessor.ChatColor;
         if (Main.xMas)
         {
             response = Encoding.UTF8.GetBytes(Language.GetTextValue("Bestiary_Events.Christmas"));
             if (!wasXmas)
-                ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral(Language.GetTextValue("Misc.StartedVictoryXmas")), chatColor);
+                ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral(Language.GetTextValue("Misc.StartedVictoryXmas")), color);
         }
         else if (Main.halloween)
         {
             response = Encoding.UTF8.GetBytes(Language.GetTextValue("Bestiary_Events.Halloween"));
             if (!wasHalloween)
-                ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral(Language.GetTextValue("Misc.StartedVictoryHalloween")), chatColor);
+                ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral(Language.GetTextValue("Misc.StartedVictoryHalloween")), color);
         }
         else
         {
             response = "None"u8.ToArray();
             if (wasXmas)
-                ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral(Language.GetTextValue("Misc.EndedVictoryXmas")), chatColor);
+                ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral(Language.GetTextValue("Misc.EndedVictoryXmas")), color);
             if (wasHalloween)
-                ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral(Language.GetTextValue("Misc.EndedVictoryHalloween")), chatColor);
+                ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral(Language.GetTextValue("Misc.EndedVictoryHalloween")), color);
         }
 
-        return true;
+        return [];
     }
-    
+
     private static Season? MapArg(ReadOnlySpan<char> arg)
     {
-        if (arg.Length > 9)
+        if (arg.Length is 0 or > 9)
             return null;
 
         Span<char> loweredArg = stackalloc char[arg.Length];

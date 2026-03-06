@@ -13,30 +13,27 @@ public class GameModeCliCommand : ICliCommand
     public static string Display => $"{Command} [mode]";
     public static string Description => "Gets or sets the world's game mode";
     public static string Command => "gamemode";
-
-    public static bool TryExecute(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)
+    
+    public static ReadOnlySpan<char> TryExecute(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)
     {
-        var firstSpace = input.IndexOf(' ');
-        var arg = firstSpace > 0
-            ? input[(firstSpace + 1)..].Trim()
-            : "";
+        var arg = CliCommandProcessor.GetArgString(input);
         var mode = MapArg(arg);
         var text = MapMode(mode);
         
         if (mode != Main.GameMode)
         {
             Main.GameMode = mode;
-            ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral($"World mode set to {text}"), new(0, 255, 255));
+            ChatHelper.BroadcastChatMessage(NetworkText.FromLiteral($"World mode set to {text}"), CliCommandProcessor.ChatColor);
             NetMessage.SendData(MessageID.WorldData);
         }
 
         response = Encoding.GetBytes(text);
-        return true;
+        return [];
     }
 
     private static int MapArg(ReadOnlySpan<char> arg)
     {
-        if (arg.Length > 8)
+        if (arg.Length is 0 or > 8)
             return Main.GameMode;
 
         Span<char> loweredArg = stackalloc char[arg.Length];

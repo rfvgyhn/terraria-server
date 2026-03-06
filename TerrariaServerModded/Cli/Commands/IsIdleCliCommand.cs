@@ -11,18 +11,18 @@ public class IsIdleCliCommand : ICliCommand
     public static string Description => "Check if the server has zero active players";
     public static string Command => "isidle";
 
-    public static bool TryExecute(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)
+    public static ReadOnlySpan<char> TryExecute(ReadOnlySpan<char> input, out ReadOnlyMemory<byte> response)
     {
         foreach (var p in Main.player)
         {
             if (p.active)
             {
                 response = FalseResponse;
-                return false;
+                return [];
             }
         }
 
         response = TrueResponse;
-        return true;
+        return [];
     }
 }

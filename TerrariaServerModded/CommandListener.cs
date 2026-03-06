@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
 using System.Text;
+using System.Text.Unicode;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TerrariaServerModded.Cli;
@@ -97,11 +98,17 @@ public class CommandListener(
 
     private bool TryHandleMessage(ReadOnlySpan<byte> message, out ReadOnlyMemory<byte> response)
     {
-        var text = encoding.GetString(message);
-        if (CliCommandProcessor.TryHandle(text, out response))
-            return true;
-
-        console.QueueInput(text, true);
+        var buffer = message.Length <= 1024 ? stackalloc char[message.Length] : new char[message.Length];
+        if (Utf8.ToUtf16(message, buffer, out _, out var charsWritten) != OperationStatus.Done)
+        {
+            response = ReadOnlyMemory<byte>.Empty;
+            return false;
+        }
+        
+        var cmdToRun = CliCommandProcessor.TryHandle(buffer[..charsWritten], out response);
+        if (!cmdToRun.IsEmpty)
+            console.QueueInput(cmdToRun.ToString(), true);
+        
         return true;
     }
 }
