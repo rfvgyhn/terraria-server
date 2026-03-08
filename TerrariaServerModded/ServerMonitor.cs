@@ -143,22 +143,6 @@ public sealed class ServerMonitor : IDisposable
     /// <returns>True if the packet was handled</returns>
     private bool HandlePlayerControls(Player player, Span<byte> message)
     {
-        // message layout
-        // 0 = byte  - Bits1
-        // 1 = byte  - Bits2
-        // 2 = byte  - Bits3
-        //             0 = tryKeepingHoveringUp
-        //             1 = IsVoidVaultEnabled;
-        //             2 = sitting.isSitting;
-        //             3 = downedDD2EventAnyDifficulty;
-        // 3 = byte  - Bits4
-        // 4 = byte  - Selected Item
-        // 5 = float - position.x
-        // 9 = float - position.y
-        ref var bits3 = ref message[2];
-        if (SetBit(ref bits3, 1, player.IsVoidVaultEnabled) || SetBit(ref bits3, 3, player.downedDD2EventAnyDifficulty))
-            NetMessage.SendData(MessageID.PlayerControls, number: player.whoAmI, number2: bits3);
-
         if (_additionalPlayerData.TryGet(player, out var data) && data.PendingSpawn && Player.CheckSpawn(player.SpawnX, player.SpawnY))
         {
             data.PendingSpawn = false;
@@ -170,19 +154,6 @@ public sealed class ServerMonitor : IDisposable
         }
         
         return false;
-
-        bool SetBit(ref byte b, byte offset, bool value)
-        {
-            var prev = b;
-            var mask = 1 << offset;
-                
-            if (value)
-                b = (byte)(b | mask);
-            else
-                b = (byte)(b & ~mask);
-
-            return prev != b;
-        }
     }
 
     /// <returns>True if the packet was handled</returns>
