@@ -124,17 +124,24 @@ public sealed class ServerMonitor : IDisposable
             BinaryPrimitives.WriteInt16LittleEndian(message[10..], (short)player.numberOfDeathsPVP);
             message[12] = (byte)player.team;
         }
-        else if (context is PlayerSpawnContext.RecallFromItem or PlayerSpawnContext.ReviveFromDeath && player.SpawnX > -1 && player.SpawnY > -1)
+        else if (context is PlayerSpawnContext.RecallFromItem or PlayerSpawnContext.ReviveFromDeath)
         {
+            var x = BinaryPrimitives.ReadInt16LittleEndian(message);
+            var y = BinaryPrimitives.ReadInt16LittleEndian(message[2..]);
+            if (x > -1 && y > -1)
+            {
+                player.SpawnX = x;
+                player.SpawnY = y;
+            }
+            
             if (Player.CheckSpawn(player.SpawnX, player.SpawnY))
             {
                 var pos = Vector2.Subtract(new Point(player.SpawnX, player.SpawnY).ToWorldCoordinates(autoAddY: 0.0f), new Vector2(player.width / 2.0f, player.height));
                 player.Teleport(pos);
                 NetMessage.SendData(MessageID.TeleportEntity, number2: player.whoAmI, number3: pos.X, number4: pos.Y, number5: -1);
                 NetMessage.SendData(MessageID.PlayerSpawn, ignoreClient: player.whoAmI, number: player.whoAmI, number2: (byte) context);
+                return true;
             }
-
-            return true;
         }
 
         return false;
@@ -143,14 +150,18 @@ public sealed class ServerMonitor : IDisposable
     /// <returns>True if the packet was handled</returns>
     private bool HandlePlayerControls(Player player, Span<byte> message)
     {
-        if (_additionalPlayerData.TryGet(player, out var data) && data.PendingSpawn && Player.CheckSpawn(player.SpawnX, player.SpawnY))
+        if (_additionalPlayerData.TryGet(player, out var data) && data.PendingSpawn)
         {
             data.PendingSpawn = false;
-            var pos = Vector2.Subtract(new Point(player.SpawnX, player.SpawnY).ToWorldCoordinates(autoAddY: 0.0f), new Vector2(player.width / 2.0f, player.height));
-            player.Teleport(pos);
-            NetMessage.SendData(MessageID.TeleportEntity, number2: player.whoAmI, number3: pos.X, number4: pos.Y, number5: -1);
-            BinaryPrimitives.WriteSingleLittleEndian(message[5..], player.position.X);
-            BinaryPrimitives.WriteSingleLittleEndian(message[9..], player.position.Y);
+
+            if (Player.CheckSpawn(player.SpawnX, player.SpawnY))
+            {
+                var pos = Vector2.Subtract(new Point(player.SpawnX, player.SpawnY).ToWorldCoordinates(autoAddY: 0.0f), new Vector2(player.width / 2.0f, player.height));
+                player.Teleport(pos);
+                NetMessage.SendData(MessageID.TeleportEntity, number2: player.whoAmI, number3: pos.X, number4: pos.Y, number5: -1);
+                BinaryPrimitives.WriteSingleLittleEndian(message[5..], player.position.X);
+                BinaryPrimitives.WriteSingleLittleEndian(message[9..], player.position.Y);
+            }
         }
         
         return false;
