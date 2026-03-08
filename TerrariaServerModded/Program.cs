@@ -47,6 +47,7 @@ public static partial class Program
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
         log.LogInformation("Modded Terraria Server - v{Version}", version);
+        log.LogInformation("Terraria Server - v{Version}", Terraria.Main.assemblyVersionNumber);
 
         var (fullDataPath, terrariaArgs) = PrepareArgs(context, dataPath, log);
         var saveRoot = InitSaveRoot(fullDataPath);
