@@ -20,6 +20,7 @@ A containerized, modded Terraria server with a custom management wrapper for enh
     and your host charges by CPU time. Pairs well with [game-manager].
   - `gamemode [mode]` gets or sets the world's game mode.
   - `season [season]` gets or sets the world's season (Xmas/Christmas, Halloween, none).
+  - `exit [reason]` Disconnect players showing the specified reason and then fallback to the standard `exit` command
   - Any other string will be treated as a command to send to the server (e.g. `say`, `exit`, etc...).
   ```bash
   echo "isidle" | socat - UNIX-CONNECT:/tmp/terraria.sock
