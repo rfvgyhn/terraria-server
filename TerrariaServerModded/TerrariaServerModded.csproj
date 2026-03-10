@@ -7,7 +7,7 @@
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <LangVersion>preview</LangVersion>
-        <VersionPrefix>1.6.0</VersionPrefix>
+        <VersionPrefix>1.6.1</VersionPrefix>
     </PropertyGroup>
 
     <ItemGroup>
@@ -16,7 +16,7 @@
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
-        <PackageReference Include="OTAPI.Upcoming" Version="3.3.7" />
+        <PackageReference Include="OTAPI.Upcoming" Version="3.3.11" />
         <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.0" />
         <PackageReference Include="System.Drawing.Common" Version="9.0.12" />
     </ItemGroup>

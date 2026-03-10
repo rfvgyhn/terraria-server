@@ -34,7 +34,7 @@ public sealed class ServerMonitor : IDisposable
     {
         On.Terraria.Chat.Commands.HelpCommand.ProcessIncomingMessage += OnHelpCommand;
         On.Terraria.IO.WorldFile.LoadWorld += OnWorldLoad;
-        On.Terraria.IO.WorldFile.SaveWorld_bool_bool += OnWorldSave;
+        On.Terraria.IO.WorldFile.SaveWorld += OnWorldSave;
         On.Terraria.Initializers.ChatInitializer.Load += OnChatInitLoad;
         On.Terraria.Main.Initialize += OnInitialize;
         On.Terraria.MessageBuffer.GetData += OnGetData;
@@ -45,7 +45,7 @@ public sealed class ServerMonitor : IDisposable
     {
         On.Terraria.Chat.Commands.HelpCommand.ProcessIncomingMessage -= OnHelpCommand;
         On.Terraria.IO.WorldFile.LoadWorld -= OnWorldLoad;
-        On.Terraria.IO.WorldFile.SaveWorld_bool_bool -= OnWorldSave;
+        On.Terraria.IO.WorldFile.SaveWorld -= OnWorldSave;
         On.Terraria.Initializers.ChatInitializer.Load -= OnChatInitLoad;
         On.Terraria.Main.Initialize -= OnInitialize;
         On.Terraria.MessageBuffer.GetData -= OnGetData;
@@ -216,11 +216,11 @@ public sealed class ServerMonitor : IDisposable
         _playerStore.WorldDirectory = Main.worldName;
     }
 
-    private void OnWorldSave(On.Terraria.IO.WorldFile.orig_SaveWorld_bool_bool orig, bool cloud, bool reset)
+    private void OnWorldSave(On.Terraria.IO.WorldFile.orig_SaveWorld orig, bool resetTime, bool useTemps, bool canBeSkipped)
     {
         _log.LogInformation("World save detected. Queuing save of all online players");
         SavePlayers(_playerDataService, Main.player);
-        orig(cloud, reset);
+        orig(resetTime, useTemps, canBeSkipped);
     }
 
     private void OnClientDisconnect(On.Terraria.RemoteClient.orig_Reset orig, RemoteClient remoteClient)

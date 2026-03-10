@@ -1,5 +1,5 @@
 # Terraria Server Modded
-![Terraria Version](https://img.shields.io/badge/Terraria-v1.4.5.5-28a745)
+![Terraria Version](https://img.shields.io/badge/Terraria-v1.4.5.6-28a745)
 
 A containerized, modded Terraria server with a custom management wrapper for enhanced server control.
 
