@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using On.Terraria.Chat.Commands;
@@ -17,15 +18,22 @@ public sealed class ServerMonitor : IDisposable
     private readonly byte _playerDifficulty;
     private readonly PlayerStore _playerStore;
     private readonly PlayerDataService _playerDataService;
+    private readonly ChannelWriter<string> _statusTextWriter;
     private readonly ILogger<ServerMonitor> _log;
     private readonly Dictionary<string, AdditionalPlayerData> _additionalPlayerData = new(StringComparer.OrdinalIgnoreCase);
+    private string _lastStatus = "";
 
-    public ServerMonitor(byte playerDifficulty, PlayerStore playerStore, PlayerDataService playerDataService,
+    public ServerMonitor(
+        byte playerDifficulty,
+        PlayerStore playerStore,
+        PlayerDataService playerDataService,
+        ChannelWriter<string> statusTextWriter,
         ILogger<ServerMonitor> log)
     {
         _playerDifficulty = playerDifficulty;
         _playerStore = playerStore;
         _playerDataService = playerDataService;
+        _statusTextWriter = statusTextWriter;
         _log = log;
         RegisterHooks();
     }
@@ -37,6 +45,7 @@ public sealed class ServerMonitor : IDisposable
         On.Terraria.IO.WorldFile.SaveWorld += OnWorldSave;
         On.Terraria.Initializers.ChatInitializer.Load += OnChatInitLoad;
         On.Terraria.Main.Initialize += OnInitialize;
+        On.Terraria.Main.mfwh_set_statusText += OnStatusTextChanged;
         On.Terraria.MessageBuffer.GetData += OnGetData;
         On.Terraria.RemoteClient.Reset += OnClientDisconnect;
     }
@@ -48,10 +57,22 @@ public sealed class ServerMonitor : IDisposable
         On.Terraria.IO.WorldFile.SaveWorld -= OnWorldSave;
         On.Terraria.Initializers.ChatInitializer.Load -= OnChatInitLoad;
         On.Terraria.Main.Initialize -= OnInitialize;
+        On.Terraria.Main.mfwh_set_statusText -= OnStatusTextChanged;
         On.Terraria.MessageBuffer.GetData -= OnGetData;
         On.Terraria.RemoteClient.Reset -= OnClientDisconnect;
     }
-    
+
+    private void OnStatusTextChanged(On.Terraria.Main.orig_mfwh_set_statusText orig, string value)
+    {
+        if (_lastStatus != value)
+        {
+            _statusTextWriter.TryWrite(value);
+            _lastStatus = value;
+        }
+
+        orig(value);
+    }
+
     private static void OnHelpCommand(HelpCommand.orig_ProcessIncomingMessage orig, Terraria.Chat.Commands.HelpCommand self, string text, byte clientId)
     {
         orig(self, text, clientId);

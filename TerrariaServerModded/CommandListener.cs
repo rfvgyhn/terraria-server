@@ -17,7 +17,7 @@ public class CommandListener(
     Encoding encoding,
     ILogger<CommandListener> log) : BackgroundService
 {
-    private readonly string _socketPath = Path.Combine(socketDir, "terraria.sock");
+    private readonly string _socketPath = Path.Combine(socketDir, "cmd.sock");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

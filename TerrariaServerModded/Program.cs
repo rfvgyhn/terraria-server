@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using ConsoleAppFramework;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
@@ -28,7 +29,8 @@ public static partial class Program
     /// <param name="backupCount">Number of backups to keep per player</param>
     /// <param name="verbose">Enable verbose logging</param>
     /// <param name="dryRun">Do not start the server</param>
-    /// <param name="socketDir">Directory to use for Unix domain socket</param>
+    /// <param name="socketDir">Directory to use for Unix domain sockets</param>
+    /// <param name="statusReportInterval">Interval, in milliseconds, to report world loading status. 0 to disable reporting</param>
     private static async Task Run(
         ConsoleAppContext context,
         string dataPath = "~/.local/share/Terraria",
@@ -38,7 +40,8 @@ public static partial class Program
         bool verbose = false,
         int backupCount = 5,
         bool dryRun = false,
-        string socketDir = "/tmp",
+        string socketDir = "/run/terraria-server",
+        int statusReportInterval = 0,
         CancellationToken ct = default)
     {
         var logFactory = CreateLogger(verbose);
@@ -53,17 +56,28 @@ public static partial class Program
         var saveRoot = InitSaveRoot(fullDataPath);
         var playerStore = new PlayerStore(saveRoot, !noCompress, backupCount, logFactory.CreateLogger<PlayerStore>());
         var playerDataService = new PlayerDataService(!noTeamSave, playerStore, logFactory.CreateLogger<PlayerDataService>());
-        using var serverMonitor = new ServerMonitor(difficulty, playerStore, playerDataService, logFactory.CreateLogger<ServerMonitor>());
         using var console = new ConsoleInterceptor(Console.In, ct);
         console.InputReceived += (_, args) =>
         {
             if (CliCommandProcessor.HandleConsoleInput(args.Input) is { IsEmpty: false } response)
                 args.Response = response.ToString();
         };
+        var statusTextChannel = Channel.CreateBounded<string>(new BoundedChannelOptions(10)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleWriter = true,
+            SingleReader = true,
+        });
+        var statusSocketDir = Path.Combine(socketDir, "status");
+        using var serverMonitor = new ServerMonitor(difficulty, playerStore, playerDataService, statusTextChannel.Writer, logFactory.CreateLogger<ServerMonitor>());
+        using var statusReporter = OperatingSystem.IsLinux() && statusReportInterval > 0 ? new StatusReporter(statusSocketDir, statusTextChannel.Reader, TimeSpan.FromMilliseconds(statusReportInterval), logFactory.CreateLogger<StatusReporter>()) : null;
         var commandListener = OperatingSystem.IsLinux() ? new CommandListener(console, socketDir, Encoding.UTF8, logFactory.CreateLogger<CommandListener>()) : null;
-        
+
+#pragma warning disable CA1416
         await playerDataService.StartAsync(ct);
         await (commandListener?.StartAsync(ct) ?? Task.CompletedTask);
+        await (statusReporter?.StartAsync(ct) ?? Task.CompletedTask);
+#pragma warning restore CA1416
         if (ct.IsCancellationRequested)
             return;
         
@@ -95,9 +109,14 @@ public static partial class Program
             log.LogError(e, "Server crashed");
         }
         
+        statusTextChannel.Writer.TryComplete();
+        
         await Task.WhenAll(
+#pragma warning disable CA1416
             commandListener?.StopAsync(ct) ?? Task.CompletedTask,
-            playerDataService.StopAsync(ct)
+            playerDataService.StopAsync(ct),
+            statusReporter?.StopAsync(ct) ?? Task.CompletedTask
+#pragma warning restore CA1416
         );
     }
 
