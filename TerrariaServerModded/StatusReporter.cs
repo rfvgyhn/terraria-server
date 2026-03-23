@@ -28,6 +28,7 @@ public sealed class StatusReporter(string socketDir, ChannelReader<string> statu
     private static readonly string RunningStep1 = Language.GetTextValue("CLI.ServerStarted");
     private static readonly float[] InitializeStepWeights = [.33f, .33f, .33f, .1f];
     private static readonly float[] GenerateWorldStepWeights = [.94f, .3f, .3f];
+    private readonly string _socketDir = Path.Combine(socketDir, "status");
     private State _currentState = State.None;
     private State _lastReportedState = State.None;
     private float _lastReportedProgress;
@@ -37,13 +38,19 @@ public sealed class StatusReporter(string socketDir, ChannelReader<string> statu
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (reportInterval <= TimeSpan.Zero)
+        {
+            log.LogInformation("Report interval '{Interval}' is not greater than zero. Status reporting disabled", reportInterval);
+            return;
+        }
+            
         try
         {
-            Directory.CreateDirectory(socketDir);
+            Directory.CreateDirectory(_socketDir);
         }
         catch (Exception ex)
         {
-            log.LogError(ex, "Failed to create socket directory '{Path}'. Status reporting disabled.", socketDir);
+            log.LogError(ex, "Failed to create socket directory '{Path}'. Status reporting disabled.", _socketDir);
             return;
         }
 
@@ -54,7 +61,7 @@ public sealed class StatusReporter(string socketDir, ChannelReader<string> statu
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        log.LogInformation("Sending status updates to {SocketPath}/*.sock", socketDir);
+        log.LogInformation("Sending status updates to {SocketPath}/*.sock", _socketDir);
         var lastSend = Stopwatch.GetTimestamp();
 
         try
@@ -233,7 +240,7 @@ public sealed class StatusReporter(string socketDir, ChannelReader<string> statu
         var msg = buffer[..bytesWritten];
         try
         {
-            foreach (var path in Directory.EnumerateFiles(socketDir, "*.sock", SearchOption.TopDirectoryOnly))
+            foreach (var path in Directory.EnumerateFiles(_socketDir, "*.sock", SearchOption.TopDirectoryOnly))
             {
                 var endpoint = new UnixDomainSocketEndPoint(path);
                 _socket.SendTo(msg, SocketFlags.None, endpoint);

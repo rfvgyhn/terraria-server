@@ -126,7 +126,7 @@ public static partial class Program
         if (!OperatingSystem.IsLinux())
             return null;
             
-        socketDir ??= FindDefaultSocketDir();
+        socketDir ??= Native.Linux.FindDefaultSocketDir();
         return new CommandListener(console, socketDir, Encoding.UTF8, logFactory.CreateLogger<CommandListener>());
     }
         
@@ -135,20 +135,8 @@ public static partial class Program
         if (!OperatingSystem.IsLinux())
             return null;
 
-        socketDir ??= FindDefaultSocketDir();
-        var statusSocketDir = Path.Combine(socketDir, "status");
-            
-        if (statusReportInterval > 0)
-            return new StatusReporter(statusSocketDir, statusTextChannel.Reader, TimeSpan.FromMilliseconds(statusReportInterval), logFactory.CreateLogger<StatusReporter>());
-            
-        return null;
-    }
-
-    [SupportedOSPlatform("linux")]
-    private static string FindDefaultSocketDir()
-    {
-        var path = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? $"/run/user/${Native.Linux.GetUid()}";
-        return Path.Combine(path, "terraria-server");
+        socketDir ??= Native.Linux.FindDefaultSocketDir();
+        return new StatusReporter(socketDir, statusTextChannel.Reader, TimeSpan.FromMilliseconds(statusReportInterval), logFactory.CreateLogger<StatusReporter>());
     }
 
     private static (string, string[]) PrepareArgs(ConsoleAppContext context, string dataPath, ILogger log)
