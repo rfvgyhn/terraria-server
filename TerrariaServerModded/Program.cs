@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
@@ -29,7 +30,7 @@ public static partial class Program
     /// <param name="backupCount">Number of backups to keep per player</param>
     /// <param name="verbose">Enable verbose logging</param>
     /// <param name="dryRun">Do not start the server</param>
-    /// <param name="socketDir">Directory to use for Unix domain sockets</param>
+    /// <param name="socketDir">Directory to use for Unix domain sockets [Default: $XDG_RUNTIME_DIR/terraria-server]</param>
     /// <param name="statusReportInterval">Interval, in milliseconds, to report world loading status. 0 to disable reporting</param>
     private static async Task Run(
         ConsoleAppContext context,
@@ -40,7 +41,7 @@ public static partial class Program
         bool verbose = false,
         int backupCount = 5,
         bool dryRun = false,
-        string socketDir = "/run/terraria-server",
+        [HideDefaultValue] string? socketDir = null,
         int statusReportInterval = 0,
         CancellationToken ct = default)
     {
@@ -68,10 +69,10 @@ public static partial class Program
             SingleWriter = true,
             SingleReader = true,
         });
-        var statusSocketDir = Path.Combine(socketDir, "status");
+        
         using var serverMonitor = new ServerMonitor(difficulty, playerStore, playerDataService, statusTextChannel.Writer, logFactory.CreateLogger<ServerMonitor>());
-        using var statusReporter = OperatingSystem.IsLinux() && statusReportInterval > 0 ? new StatusReporter(statusSocketDir, statusTextChannel.Reader, TimeSpan.FromMilliseconds(statusReportInterval), logFactory.CreateLogger<StatusReporter>()) : null;
-        var commandListener = OperatingSystem.IsLinux() ? new CommandListener(console, socketDir, Encoding.UTF8, logFactory.CreateLogger<CommandListener>()) : null;
+        using var statusReporter = CreateStatusReporter(socketDir, statusReportInterval, statusTextChannel, logFactory);
+        var commandListener = CreateCommandListener(socketDir, console, logFactory);
 
 #pragma warning disable CA1416
         await playerDataService.StartAsync(ct);
@@ -118,6 +119,36 @@ public static partial class Program
             statusReporter?.StopAsync(ct) ?? Task.CompletedTask
 #pragma warning restore CA1416
         );
+    }
+    
+    private static CommandListener? CreateCommandListener(string? socketDir, ConsoleInterceptor console, ILoggerFactory logFactory)
+    {
+        if (!OperatingSystem.IsLinux())
+            return null;
+            
+        socketDir ??= FindDefaultSocketDir();
+        return new CommandListener(console, socketDir, Encoding.UTF8, logFactory.CreateLogger<CommandListener>());
+    }
+        
+    private static StatusReporter? CreateStatusReporter(string? socketDir, int statusReportInterval, Channel<string> statusTextChannel, ILoggerFactory logFactory)
+    {
+        if (!OperatingSystem.IsLinux())
+            return null;
+
+        socketDir ??= FindDefaultSocketDir();
+        var statusSocketDir = Path.Combine(socketDir, "status");
+            
+        if (statusReportInterval > 0)
+            return new StatusReporter(statusSocketDir, statusTextChannel.Reader, TimeSpan.FromMilliseconds(statusReportInterval), logFactory.CreateLogger<StatusReporter>());
+            
+        return null;
+    }
+
+    [SupportedOSPlatform("linux")]
+    private static string FindDefaultSocketDir()
+    {
+        var path = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? $"/run/user/${Native.Linux.GetUid()}";
+        return Path.Combine(path, "terraria-server");
     }
 
     private static (string, string[]) PrepareArgs(ConsoleAppContext context, string dataPath, ILogger log)

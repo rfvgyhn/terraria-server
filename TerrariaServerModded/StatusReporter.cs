@@ -37,7 +37,16 @@ public sealed class StatusReporter(string socketDir, ChannelReader<string> statu
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(socketDir);
+        try
+        {
+            Directory.CreateDirectory(socketDir);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Failed to create socket directory '{Path}'. Status reporting disabled.", socketDir);
+            return;
+        }
+
         _socket ??= new Socket(AddressFamily.Unix, SocketType.Dgram, ProtocolType.Unspecified);
         _socket.SendTimeout = 500;
         await base.StartAsync(cancellationToken);

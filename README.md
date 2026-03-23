@@ -16,14 +16,14 @@ A containerized, modded Terraria server with a custom management wrapper for enh
 - Adds `/quests` chat command for showing players' finished angler quest count
 - Graceful shutdown on SIGTERM. Saves world and character data before exiting.
 - Includes [sockets]:
-  - `/run/terraria-server/cmd.sock` (`/sockets/cmd.sock` when using docker) for running commands from the host
+  - `$XDG_RUNTIME_DIR/terraria-server/cmd.sock` (`/sockets/cmd.sock` when using docker) for running commands from the host
     - `isidle` checks if there are any active players. Useful for shutting down the server when no players are connected 
       and your host charges by CPU time. Pairs well with [game-manager].
     - `gamemode [mode]` gets or sets the world's game mode.
     - `season [season]` gets or sets the world's season (Xmas/Christmas, Halloween, none).
     - `exit [reason]` Disconnect players showing the specified reason and then fallback to the standard `exit` command
     - Any other string will be treated as a command to send to the server (e.g. `say`, `exit`, etc...).
-  - `/run/terraria-server/status/*.sock` (`/sockets/status/*.sock` when using docker) for receiving server loading
+  - `$XDG_RUNTIME_DIR/terraria-server/status/*.sock` (`/sockets/status/*.sock` when using docker) for receiving server loading
     progress updates.
 
 ## Quick Start
@@ -56,9 +56,9 @@ bind mounts and want to edit files, create a group on the host that matches this
 ```bash
 sudo groupadd --gid 1654 docker-dotnet
 sudo usermod -aG docker-dotnet $USER
-mkdir -p data /run/terraria-server/status
-chmod -R g+w data /run/terraria-server
-sudo chgrp -R docker-dotnet data /run/terraria-server
+mkdir -p data /run/user/$UID/terraria-server/status
+chmod -R g+w data /run/user/$UID/terraria-server
+sudo chgrp -R docker-dotnet data /run/user/$UID/terraria-server
 ```
 #### Volumes
 - `/data` - Server-side character data and world files
@@ -103,19 +103,19 @@ docker run -it [options] terraria-server:latest --verbose -- -players 16
 ### Server Wrapper Arguments
 These arguments control the server wrapper (the code preceding the `--` separator).
 
-| Argument                   | Description                                                                       | Default                   |
-|:---------------------------|:----------------------------------------------------------------------------------|:--------------------------|
-| `--data-path`              | Directory where server data and characters are stored.                            | `~/.local/share/Terraria` |
-| `--verbose`                | Enable trace-level logging for the wrapper.                                       | `false`                   |
-| `--difficulty`             | Difficulty to use for all players (Softcore: 0, Mediumcore: 1, Hardcore: 2).      | `0`                       |
-| `--no-compress`            | Disable compression for character save files.                                     | `false`                   |
-| `--backup-count`           | Number of character backups to maintain per player.                               | `5`                       |
-| `--no-team-save`           | Disable saving the player's last active team.                                     | `false`                   |
-| `--version`                | Print the version of the server wrapper and exit.                                 | `false`                   |
-| `--dry-run`                | Do not start the server.                                                          | `false`                   |
-| `--socket-dir`             | Directory to use for Unix domain sockets.                                         | `/run/terraria-server`    |
-| `--status-report-interval` | Interval, in milliseconds, to report world loading status. 0 to disable reporting | `0` (disabled)            |
-| `--help`                   | Print usage information and exit.                                                 | `false`                   |
+| Argument                   | Description                                                                       | Default                                                                             |
+|:---------------------------|:----------------------------------------------------------------------------------|:------------------------------------------------------------------------------------|
+| `--data-path`              | Directory where server data and characters are stored.                            | `~/.local/share/Terraria`                                                           |
+| `--verbose`                | Enable trace-level logging for the wrapper.                                       | `false`                                                                             |
+| `--difficulty`             | Difficulty to use for all players (Softcore: 0, Mediumcore: 1, Hardcore: 2).      | `0`                                                                                 |
+| `--no-compress`            | Disable compression for character save files.                                     | `false`                                                                             |
+| `--backup-count`           | Number of character backups to maintain per player.                               | `5`                                                                                 |
+| `--no-team-save`           | Disable saving the player's last active team.                                     | `false`                                                                             |
+| `--version`                | Print the version of the server wrapper and exit.                                 | `false`                                                                             |
+| `--dry-run`                | Do not start the server.                                                          | `false`                                                                             |
+| `--socket-dir`             | Directory to use for Unix domain sockets.                                         | `$XDG_RUNTIME_DIR/terraria-server` `/run/user/$UID` if `$XDG_RUNTIME_DIR` isn't set |
+| `--status-report-interval` | Interval, in milliseconds, to report world loading status. 0 to disable reporting | `0` (disabled)                                                                      |
+| `--help`                   | Print usage information and exit.                                                 | `false`                                                                             |
 
 ### Terraria Server Arguments
 Arguments placed **after** the `--` separator are passed directly to the Terraria Dedicated Server executable.
