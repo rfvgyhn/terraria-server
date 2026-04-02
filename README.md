@@ -11,7 +11,7 @@ A containerized, modded Terraria server with a custom management wrapper for enh
   - Forced difficulty setting
   - Persistent player team
   - Adds `/playtime` chat command for tracking playtime
-- Adds `/boosters` chat command for showing players' permanent boosters
+- Adds `/boosters` chat command for showing players' and the world's permanent boosters
 - Adds `/mode` chat command for showing the world's current mode
 - Adds `/quests` chat command for showing players' finished angler quest count
 - Graceful shutdown on SIGTERM. Saves world and character data before exiting.
